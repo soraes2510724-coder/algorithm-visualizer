@@ -1,0 +1,123 @@
+:root{
+	--bg : #0f1724;
+	--card : #0b1220;
+	--muted : #94a3b8;
+	--accent : #60a5fa;
+	--step : #f59e0b;
+	--swap : #ef4444;
+	--overwrite : #38bdf8;
+	--done : #34d399;
+}
+*{
+	box-sizing:border-box
+}
+html, body{
+	height : 100%; 
+	margin : 0;
+	font-family : Inter, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial
+}
+body{
+	background : linear-gradient(180deg,#071024 0%, #071428 100%);
+	color : #e6eef8;
+	display : flex;
+	align-items : flex-start;
+	padding : 24px;
+}
+.container{
+	max-width : 1100px;
+	margin : 0 auto;
+	width : 100%
+}
+header{ 
+	display : flex;
+	align-items : center;
+	justify-content : space-between;
+	gap : 16px;
+}
+h1{
+	margin : 0;
+	font-size : 24px;
+}
+.controls{
+	display : flex;
+	flex-wrap : wrap;
+	gap : 10px;
+	align-items : center;
+}
+select, input[type=range]{
+	background : #06101a;
+	border : 1px solid rgba(255,255,255,0.04);
+	color : inherit;
+	padding : 6px;
+	border-radius : 8px;
+}
+button{
+	background : #0ea5e9;
+	border : none;
+	padding : 8px 12px;
+	border-radius : 8px;
+	color : #04293a;
+	cursor : pointer;
+	font-weight : 600;
+}
+button.secondary{
+	background : #334155;
+	color : #e6eef8;
+}
+.card{
+	background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);
+	padding:16px;
+	border-radius:12px;
+	margin-top:18px;
+	border:1px solid rgba(255,255,255,0.03);
+}
+.playbar{
+	display:flex;
+	gap:8px;
+	align-items:center;
+}
+/* visualization */
+.canvas{
+	height:380px;
+	background:#031428;
+	border-radius:10px;
+	padding:12px;
+	margin-top:12px;
+	overflow:hidden;
+	display:flex;
+	align-items:flex-end;
+}
+.bar{
+	display:inline-block;
+	border-radius:4px;
+	margin-right:2px;
+	vertical-align:bottom;
+	transition:height 120ms linear, background-color 120ms linear;
+}
+.legend{
+	display:flex;
+	gap:12px;
+	flex-wrap:wrap;
+	color:var(--muted);
+	margin-top:12px;
+}
+.legend .item{
+	display:flex;
+	gap:8px;
+	align-items:center;
+}
+.swatch{
+	width:18px;
+	height:12px;
+	border-radius:3px;
+}
+footer{
+	margin-top:12px;
+	color:var(--muted);
+	font-size:13px;
+}
+@media (max-width:720px){
+	.canvas{
+		height:240px
+	}
+}
