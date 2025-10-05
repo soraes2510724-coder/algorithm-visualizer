@@ -1,0 +1,304 @@
+// ---------- 유틸 ----------
+const $ = (id) => document.getElementById(id);
+const canvas = $('canvas');
+const sizeInput = $('size');
+const speedInput = $('speed');
+const algoSelect = $('algorithm');
+const playBtn = $('playBtn');
+const pauseBtn = $('pauseBtn');
+const stepBtn = $('stepBtn');
+const shuffleBtn = $('shuffleBtn');
+const sortedBtn = $('sortedBtn');
+const stepCountLabel = $('stepCount');
+
+let array = [];
+let gen = null;
+let running = false;
+let timer = null;
+let stepCount = 0;
+
+function randArray(n){
+	return Array.from({length:n},()=>Math.floor(Math.random()*400)+10);
+}
+
+function render(){
+	canvas.innerHTML = '';
+	if(array.length===0) return;
+	const max = Math.max(...array);
+	const barWidth = Math.max(3, Math.floor((canvas.clientWidth - array.length*2) / array.length));
+	for(let i=0;i<array.length;i++){
+		const h = Math.max(4, Math.round((array[i]/max) * 100));
+		const bar = document.createElement('div');
+		bar.className = 'bar';
+		bar.style.width = barWidth+'px';
+		bar.style.height = h + '%';
+		bar.dataset.idx = i;
+		bar.title = String(array[i]);
+		bar.style.background = 'linear-gradient(180deg,#e2e8f0,#94a3b8)';
+		canvas.appendChild(bar);
+	}
+}
+
+function colorBars(indices, color){
+	indices = Array.isArray(indices)?indices:[indices];
+	indices.forEach(i=>{
+		const b = canvas.querySelector(`.bar[data-idx='${i}']`);
+		if(b) b.style.background = color;
+	});
+}
+
+// ---------- 알고리즘 제너레이터 ----------
+function* bubbleSort(a){
+	const arr = a.slice();
+	const n = arr.length;
+	for(let i=0;i<n-1;i++){
+		for(let j=0;j<n-1-i;j++){
+			yield {type:'compare',i:j,j:j+1};
+			if(arr[j]>arr[j+1]){
+				[arr[j],arr[j+1]]=[arr[j+1],arr[j]];
+				yield {type:'swap',i:j,j:j+1,arr:arr.slice()};
+			}
+		}
+		yield {type:'mark',i:n-1-i};
+	}
+	yield {type:'done',arr:arr.slice()};
+}
+
+function* selectionSort(a){
+	const arr = a.slice();
+	const n = arr.length;
+	for(let i=0;i<n;i++){
+		let minIdx = i;
+		for(let j=i+1;j<n;j++){
+			yield {type:'compare',i:minIdx,j};
+			if(arr[j]<arr[minIdx]) minIdx=j;
+		}
+		if(minIdx!==i){
+			[arr[i],arr[minIdx]]=[arr[minIdx],arr[i]];
+			yield {type:'swap',i,j:minIdx,arr:arr.slice()};
+		}
+		yield {type:'mark',i};
+	}
+	yield {type:'done',arr:arr.slice()};
+}
+
+function* insertionSort(a){
+	const arr = a.slice();
+	for(let i=1;i<arr.length;i++){
+		let j=i;
+		while(j>0){
+			yield {type:'compare',i:j-1,j};
+			if(arr[j-1]>arr[j]){
+				[arr[j-1],arr[j]]=[arr[j],arr[j-1]];
+				yield {type:'swap',i:j-1,j,arr:arr.slice()};
+			} else break;
+			j--;
+		}
+		yield {type:'mark',i};
+	}
+	yield {type:'done',arr:arr.slice()};
+}
+
+function* mergeSort(a){
+	const arr = a.slice();
+	const n = arr.length;
+	function* merge(l,m,r){
+		const left = arr.slice(l,m+1);
+		const right = arr.slice(m+1,r+1);
+		let i=0,j=0,k=l;
+		while(i<left.length && j<right.length){
+			yield {type:'compare',i:l+i,j:m+1+j};
+			if(left[i]<=right[j]){
+				arr[k]=left[i++];
+				yield {type:'overwrite',i:k,value:arr[k],arr:arr.slice()};
+			} else {
+				arr[k]=right[j++];
+				yield {type:'overwrite',i:k,value:arr[k],arr:arr.slice()};
+			}
+			k++;
+		}
+		while(i<left.length){
+			arr[k]=left[i++];
+			yield {type:'overwrite',i:k,value:arr[k],arr:arr.slice()};
+			k++;
+		}
+		while(j<right.length){
+			arr[k]=right[j++];
+			yield {type:'overwrite',i:k,value:arr[k],arr:arr.slice()};
+			k++;
+		}
+	}
+	function* rec(l,r){
+		if(l>=r) return;
+		const m=Math.floor((l+r)/2);
+		yield* rec(l,m);
+		yield* rec(m+1,r);
+		yield* merge(l,m,r);
+	} 
+	yield* rec(0,n-1);
+	yield {type:'done',arr:arr.slice()};
+}
+
+function* quickSort(a){
+	const arr = a.slice();
+	const stack = [[0,arr.length-1]];
+	while(stack.length){
+		const [lo,hi] = stack.pop();
+		if(lo>=hi) continue;
+		const pivot = arr[hi];
+		let i = lo;
+		for(let j=lo;j<hi;j++){
+			yield {type:'compare',i:j,j:hi};
+			if(arr[j]<pivot){
+				[arr[i],arr[j]] = [arr[j],arr[i]];
+				yield {type:'swap',i,j,arr:arr.slice()};
+				i++;
+			}
+		}
+		[arr[i],arr[hi]]=[arr[hi],arr[i]];
+		yield {type:'swap',i,j:hi,arr:arr.slice()};
+		stack.push([lo,i-1]);
+		stack.push([i+1,hi]);
+	}
+	yield {type:'done',arr:arr.slice()};
+}
+
+function* heapSort(a){
+	const arr = a.slice();
+	const n = arr.length;
+	function* heapify(len,i){
+		let largest=i; const l=2*i+1, r=2*i+2;
+		if(l<len){
+			yield {type:'compare',i:l,j:largest};
+			if(arr[l]>arr[largest]) largest=l;
+		}
+		if(r<len){
+			yield {type:'compare',i:r,j:largest};
+			if(arr[r]>arr[largest]) largest=r;
+		}
+		if(largest!==i){
+			[arr[i],arr[largest]]=[arr[largest],arr[i]];
+			yield {type:'swap',i,j:largest,arr:arr.slice()};
+			yield* heapify(len,largest);
+		}
+	}
+	for(let i=Math.floor(n/2)-1;i>=0;i--) yield* heapify(n,i);
+	for(let i=n-1;i>0;i--){
+		[arr[0],arr[i]]=[arr[i],arr[0]];
+		yield {type:'swap',i:0,j:i,arr:arr.slice()};
+		yield* heapify(i,0);
+		yield {type:'mark',i};
+	}
+	yield {type:'done',arr:arr.slice()};
+}
+
+function getGenerator(name,arr){
+	switch(name){
+		case 'Bubble Sort': return bubbleSort(arr);
+		case 'Selection Sort': return selectionSort(arr);
+		case 'Insertion Sort': return insertionSort(arr);
+		case 'Merge Sort': return mergeSort(arr);
+		case 'Quick Sort': return quickSort(arr);
+		case 'Heap Sort': return heapSort(arr);
+		default: return bubbleSort(arr);
+	}
+}
+
+// ---------- 오퍼레이션 적용 ----------
+function applyOp(op){
+	stepCount++;
+	stepCountLabel.textContent = stepCount;
+	if(!op) return;
+	clearBarColors();
+	switch(op.type){
+		case 'compare':
+			colorBars([op.i,op.j], getComputedStyle(document.documentElement).getPropertyValue('--step') || 'orange');
+			break;
+		case 'swap':
+			if(op.arr) array = op.arr.slice();
+			render();
+			colorBars([op.i,op.j], getComputedStyle(document.documentElement).getPropertyValue('--swap') || 'red');
+			break;
+		case 'overwrite':
+			if(op.arr) array = op.arr.slice();
+			render();
+			colorBars(op.i, getComputedStyle(document.documentElement).getPropertyValue('--overwrite') || 'skyblue');
+			break;
+		case 'mark':
+			colorBars(op.i, getComputedStyle(document.documentElement).getPropertyValue('--done') || 'green');
+			break;
+		case 'done':
+			array = op.arr ? op.arr.slice() : array.slice();
+			render();
+			// color all bars as done
+			Array.from(canvas.children).forEach(b => b.style.background = getComputedStyle(document.documentElement).getPropertyValue('--done') || '#34d399');
+			running = false; stopLoop();
+			break;
+	}
+}
+
+function clearBarColors(){
+	Array.from(canvas.children).forEach(b=> b.style.background = 'linear-gradient(180deg,#e2e8f0,#94a3b8)');
+}
+
+// ---------- 실행 루프 관리 ----------
+function startLoop(){
+	if(running) return;
+	running = true;
+	const delay = Math.max(5, 220 - Number(speedInput.value));
+	function loop(){
+		if(!gen) gen = getGenerator(algoSelect.value, array);
+		const next = gen.next();
+		if(next.done){ running=false; stopLoop(); return; }
+		applyOp(next.value);
+		timer = setTimeout(loop, delay);
+	}
+	loop();
+}
+
+function stopLoop(){ clearTimeout(timer); timer=null; running=false; }
+
+function stepOnce(){
+	if(!gen) gen = getGenerator(algoSelect.value, array);
+	const next = gen.next();
+	if(next.done) { running=false; return; }
+	applyOp(next.value);
+}
+
+// ---------- 이벤트 바인딩 ----------
+playBtn.addEventListener('click', ()=>{ startLoop(); });
+pauseBtn.addEventListener('click', ()=>{ stopLoop(); });
+stepBtn.addEventListener('click', ()=>{ stopLoop(); stepOnce(); });
+shuffleBtn.addEventListener('click', ()=>{ stopLoop(); initArray(); });
+sortedBtn.addEventListener('click', ()=>{
+	stopLoop();
+	array = Array.from({length:Number(sizeInput.value)},(_,i)=>i+1);
+	render();
+	gen=null;
+	stepCount=0;
+	stepCountLabel.textContent=0;
+});
+
+algoSelect.addEventListener('change', ()=>{
+	stopLoop();
+	gen=null;
+	stepCount=0;
+	stepCountLabel.textContent=0;
+	render();
+});
+sizeInput.addEventListener('input', ()=>{ stopLoop(); initArray(); });
+
+// initialize
+function initArray(){
+	array = randArray(Number(sizeInput.value));
+	gen = null;
+	stepCount=0;
+	stepCountLabel.textContent=0;
+	render();
+}
+
+// resize handling
+window.addEventListener('resize', ()=> render());
+
+// kick off
+initArray();
